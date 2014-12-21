@@ -286,6 +286,75 @@ namespace PopForums.Test.Controllers
         }
 
 		[Test]
+		public void NewTopicPostEmptyFullText()
+		{
+			var controller = GetForumController();
+			var user = Models.UserTest.GetTestUser();
+			var forum = new Forum(1);
+			var topic = new Topic(2);
+			var ip = "127.0.0.1";
+			var permissionContext = new ForumPermissionContext { UserCanPost = true, UserCanView = true };
+			var newPost = new NewPost { Title = "blah", FullText = " ", IncludeSignature = true, ItemID = 2 };
+			_forumService.Setup(f => f.Get(It.IsAny<int>())).Returns(forum);
+			_forumService.Setup(f => f.GetPermissionContext(forum, user)).Returns(permissionContext);
+			var contextHelper = new HttpContextHelper();
+			contextHelper.MockRequest.Setup(r => r.UserHostAddress).Returns(ip);
+			controller.ControllerContext = new ControllerContext(contextHelper.MockContext.Object, new RouteData(), controller);
+			controller.SetUser(user);
+			var result = controller.PostTopic(newPost);
+			Assert.IsInstanceOf<JsonResult>(result);
+			var data = (BasicJsonMessage)result.Data;
+			Assert.IsFalse(data.Result);
+			_topicViewCountService.Verify(t => t.SetViewedTopic(topic, contextHelper.MockContext.Object), Times.Never());
+		}
+
+		[Test]
+		public void NewTopicPostEmptyTitle()
+		{
+			var controller = GetForumController();
+			var user = Models.UserTest.GetTestUser();
+			var forum = new Forum(1);
+			var topic = new Topic(2);
+			var ip = "127.0.0.1";
+			var permissionContext = new ForumPermissionContext { UserCanPost = true, UserCanView = true };
+			var newPost = new NewPost { Title = " ", FullText = "oihoah ao;huvauhv", IncludeSignature = true, ItemID = 2 };
+			_forumService.Setup(f => f.Get(It.IsAny<int>())).Returns(forum);
+			_forumService.Setup(f => f.GetPermissionContext(forum, user)).Returns(permissionContext);
+			var contextHelper = new HttpContextHelper();
+			contextHelper.MockRequest.Setup(r => r.UserHostAddress).Returns(ip);
+			controller.ControllerContext = new ControllerContext(contextHelper.MockContext.Object, new RouteData(), controller);
+			controller.SetUser(user);
+			var result = controller.PostTopic(newPost);
+			Assert.IsInstanceOf<JsonResult>(result);
+			var data = (BasicJsonMessage)result.Data;
+			Assert.IsFalse(data.Result);
+			_topicViewCountService.Verify(t => t.SetViewedTopic(topic, contextHelper.MockContext.Object), Times.Never());
+		}
+
+		[Test]
+		public void NewTopicPostNullTitle()
+		{
+			var controller = GetForumController();
+			var user = Models.UserTest.GetTestUser();
+			var forum = new Forum(1);
+			var topic = new Topic(2);
+			var ip = "127.0.0.1";
+			var permissionContext = new ForumPermissionContext { UserCanPost = true, UserCanView = true };
+			var newPost = new NewPost { Title = " ", FullText = "oihoah ao;huvauhv", IncludeSignature = true, ItemID = 2 };
+			_forumService.Setup(f => f.Get(It.IsAny<int>())).Returns(forum);
+			_forumService.Setup(f => f.GetPermissionContext(forum, user)).Returns(permissionContext);
+			var contextHelper = new HttpContextHelper();
+			contextHelper.MockRequest.Setup(r => r.UserHostAddress).Returns(ip);
+			controller.ControllerContext = new ControllerContext(contextHelper.MockContext.Object, new RouteData(), controller);
+			controller.SetUser(user);
+			var result = controller.PostTopic(newPost);
+			Assert.IsInstanceOf<JsonResult>(result);
+			var data = (BasicJsonMessage)result.Data;
+			Assert.IsFalse(data.Result);
+			_topicViewCountService.Verify(t => t.SetViewedTopic(topic, contextHelper.MockContext.Object), Times.Never());
+		}
+
+		[Test]
 		public void NewTopicPostUserCanPostCanView()
 		{
 			var controller = GetForumController();
@@ -378,6 +447,51 @@ namespace PopForums.Test.Controllers
 			Assert.AreSame(permissionContext, model.PermissionContext);
 			Assert.AreSame(pagerContext, model.PagerContext);
 			Assert.Null(result.ViewBag.CategorizedForums);
+		}
+
+		[Test]
+		public void TopicFromQAForumReturnsTopicContainerForQAAndCalledForAllPosts()
+		{
+			var controller = GetForumController();
+			var contextHelper = new HttpContextHelper();
+			controller.ControllerContext = new ControllerContext(contextHelper.MockContext.Object, new RouteData(), controller);
+			var forum = new Forum(1) { IsQAForum = true };
+			var topic = new Topic(2);
+			var posts = new List<Post> { new Post(456) {IsFirstInTopic = true} };
+			var permissionContext = new ForumPermissionContext { UserCanView = true, UserCanModerate = false };
+			var topicContainerForQA = new TopicContainerForQA();
+			_userService.Setup(u => u.GetUserByName(It.IsAny<string>())).Returns((User)null);
+			_forumService.Setup(f => f.Get(It.IsAny<int>())).Returns(forum);
+			_forumService.Setup(f => f.GetPermissionContext(forum, null, topic)).Returns(permissionContext);
+			_topicService.Setup(t => t.Get(It.IsAny<string>())).Returns(topic);
+			_postService.Setup(p => p.GetPosts(topic, permissionContext.UserCanModerate)).Returns(posts);
+			_forumService.Setup(x => x.MapTopicContainerForQA(It.IsAny<TopicContainer>())).Returns(topicContainerForQA);
+			var result = controller.Topic("blah");
+			Assert.IsInstanceOf<ViewResult>(result);
+			Assert.AreSame(topicContainerForQA, result.ViewData.Model);
+			_postService.Verify(x => x.GetPosts(topic, permissionContext.UserCanModerate), Times.Once());
+			Assert.AreEqual("TopicQA", result.ViewName);
+		}
+
+		[Test]
+		public void TopicFromQAForumReturnsMappedContainerFromForumService()
+		{
+			var controller = GetForumController();
+			var contextHelper = new HttpContextHelper();
+			controller.ControllerContext = new ControllerContext(contextHelper.MockContext.Object, new RouteData(), controller);
+			var forum = new Forum(1) { IsQAForum = true };
+			var topic = new Topic(2);
+			var posts = new List<Post> { new Post(456) };
+			var permissionContext = new ForumPermissionContext { UserCanView = true, UserCanModerate = false };
+			var mappedContainer = new TopicContainerForQA();
+			_forumService.Setup(x => x.MapTopicContainerForQA(It.IsAny<TopicContainer>())).Returns(mappedContainer);
+			_userService.Setup(u => u.GetUserByName(It.IsAny<string>())).Returns((User)null);
+			_forumService.Setup(f => f.Get(It.IsAny<int>())).Returns(forum);
+			_forumService.Setup(f => f.GetPermissionContext(forum, null, topic)).Returns(permissionContext);
+			_topicService.Setup(t => t.Get(It.IsAny<string>())).Returns(topic);
+			_postService.Setup(p => p.GetPosts(topic, permissionContext.UserCanModerate)).Returns(posts);
+			var result = controller.Topic("blah");
+			Assert.AreSame(mappedContainer, result.Model);
 		}
 
 		[Test]
@@ -717,6 +831,26 @@ namespace PopForums.Test.Controllers
 			Assert.AreEqual(2, ((NewPost)viewResult.ViewData.Model).ItemID);
 			Assert.True(((NewPost)viewResult.Model).IncludeSignature);
 			Assert.True(((NewPost)viewResult.Model).IsPlainText);
+			Assert.AreEqual("NewReply", viewResult.ViewName);
+		}
+
+		[Test]
+		public void ReplyPartialUserCanPostCanViewQAForum()
+		{
+			var controller = GetForumController();
+			var user = Models.UserTest.GetTestUser();
+			_forumService.Setup(f => f.Get(It.IsAny<int>())).Returns(new Forum(1) {IsQAForum = true});
+			_forumService.Setup(f => f.GetPermissionContext(It.IsAny<Forum>(), It.IsAny<User>(), It.IsAny<Topic>())).Returns(new ForumPermissionContext { UserCanPost = true, UserCanView = true });
+			_topicService.Setup(t => t.Get(1)).Returns(new Topic(2) { Title = "blah" });
+			_profileService.Setup(p => p.GetProfile(user)).Returns(new Profile { Signature = "wo;heif", IsPlainText = true });
+			var contextHelper = new HttpContextHelper();
+			controller.ControllerContext = new ControllerContext(contextHelper.MockContext.Object, new RouteData(), controller);
+			controller.SetUser(user);
+			var result = controller.PostReply(1);
+			Assert.IsInstanceOf<ViewResult>(result);
+			var viewResult = (ViewResult)result;
+			Assert.False(((NewPost)viewResult.Model).IncludeSignature);
+			Assert.AreEqual("NewComment", viewResult.ViewName);
 		}
 
 		[Test]
@@ -1417,6 +1551,27 @@ namespace PopForums.Test.Controllers
 			var controller = GetForumController();
 			_postService.Setup(x => x.GetLastPostID(123)).Returns(456);
 			Assert.IsFalse(Convert.ToBoolean(controller.IsLastPostInTopic(123, 789).Content));
+		}
+
+		[Test]
+		public void PreviewTextMapsParametersToService()
+		{
+			var controller = GetForumController();
+			const string text = "whoa";
+			const bool isPlainText = true;
+			controller.PreviewText(text, isPlainText);
+			_postService.Verify(x => x.GenerateParsedTextPreview(text, isPlainText), Times.Once());
+		}
+
+		[Test]
+		public void PreviewTextReturnsResultFromService()
+		{
+			var controller = GetForumController();
+			const string serviceResult = "test";
+			_postService.Setup(x => x.GenerateParsedTextPreview(It.IsAny<string>(), It.IsAny<bool>())).Returns(serviceResult);
+			var result = controller.PreviewText("whoa", true);
+			Assert.AreEqual(serviceResult, result.Content);
+			Assert.AreEqual("text/html", result.ContentType);
 		}
 	}
 

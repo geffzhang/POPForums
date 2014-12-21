@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Web.Mvc;
+using PopForums.Configuration.DependencyResolution;
 using PopForums.Extensions;
 using PopForums.Models;
 using PopForums.Services;
-using PopForums.Web;
 
 namespace PopForums.Controllers
 {
@@ -12,7 +12,7 @@ namespace PopForums.Controllers
 	{
 		public SearchController()
 		{
-			var serviceLocator = PopForumsActivation.ServiceLocator;
+			var serviceLocator = StructuremapMvc.StructureMapDependencyScope;
 			_searchService = serviceLocator.GetInstance<ISearchService>();
 			_forumService = serviceLocator.GetInstance<IForumService>();
 			_lastReadService = serviceLocator.GetInstance<ILastReadService>();
@@ -46,10 +46,12 @@ namespace PopForums.Controllers
 			return RedirectToAction("Result", new { query, searchType });
 		}
 
-		public ViewResult Result(string query, SearchType searchType, int page = 1)
+		[ValidateInput(false)]
+		public ViewResult Result(string query, SearchType searchType = SearchType.Rank, int page = 1)
 		{
 			ViewBag.SearchTypes = new SelectList(Enum.GetValues(typeof(SearchType)));
 			ViewBag.Query = query;
+			ViewBag.SearchType = searchType;
 			var includeDeleted = false;
 			var user = this.CurrentUser();
 			if (user != null && user.IsInRole(PermanentRoles.Moderator))

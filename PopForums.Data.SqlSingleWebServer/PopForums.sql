@@ -35,7 +35,8 @@ CREATE TABLE [dbo].[pf_Profile](
 	[AIM] [nvarchar](256) NOT NULL,
 	[ICQ] [nvarchar](256) NOT NULL,
 	[YahooMessenger] [nvarchar](256) NOT NULL,
-	[MSNMessenger] [nvarchar](256) NOT NULL,
+	[Facebook] [nvarchar](256) NULL,
+	[Twitter] [nvarchar](256) NULL,
 	[IsTos] [bit] NOT NULL DEFAULT ((0)),
 	[TimeZone] [int] NOT NULL,
 	[IsDaylightSaving] [bit] NOT NULL,
@@ -160,7 +161,8 @@ CREATE TABLE [dbo].[pf_Forum](
 	[LastPostTime] [datetime] NOT NULL,
 	[LastPostName] [nvarchar](256) NOT NULL,
 	[UrlName] [nvarchar](256) NOT NULL,
-	[ForumAdapterName] [varchar](256) NULL
+	[ForumAdapterName] [varchar](256) NULL,
+	[IsQAForum] [bit] NOT NULL DEFAULT ((0))
 ) 
 
 
@@ -192,6 +194,7 @@ CREATE TABLE [dbo].[pf_Topic](
 	[IsDeleted] [bit] NOT NULL,
 	[IsIndexed] [bit] NOT NULL,
 	[UrlName] [nvarchar](256) NOT NULL,
+	[AnswerPostID] [int] NULL,
 	CONSTRAINT [PK_pf_Topic] PRIMARY KEY NONCLUSTERED 
 		( [TopicID] ASC ) 
 ) 

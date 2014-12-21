@@ -48,22 +48,22 @@ namespace PopForums.Services
 			return _forumRepository.Get(urlName);
 		}
 
-		public Forum Create(int? categoryID, string title, string description, bool isVisible, bool isArchived, int sortOrder, string forumAdapterName)
+		public Forum Create(int? categoryID, string title, string description, bool isVisible, bool isArchived, int sortOrder, string forumAdapterName, bool isQAForum)
 		{
 			var urlName = title.ToUniqueUrlName(_forumRepository.GetUrlNamesThatStartWith(title.ToUrlName()));
-			var forum = _forumRepository.Create(categoryID, title, description, isVisible, isArchived, sortOrder, urlName, forumAdapterName);
+			var forum = _forumRepository.Create(categoryID, title, description, isVisible, isArchived, sortOrder, urlName, forumAdapterName, isQAForum);
 			forum.UrlName = urlName;
 			var forums = _forumRepository.GetAll().ToList();
 			SortAndUpdateForums(forums);
 			return forum;
 		}
 
-		public void Update(Forum forum, int? categoryID, string title, string description, bool isVisible, bool isArchived, string forumAdapterName)
+		public void Update(Forum forum, int? categoryID, string title, string description, bool isVisible, bool isArchived, string forumAdapterName, bool isQAForum)
 		{
 			var urlName = forum.UrlName;
 			if (forum.Title != title)
 				urlName = title.ToUniqueUrlName(_forumRepository.GetUrlNamesThatStartWith(title.ToUrlName()));
-			_forumRepository.Update(forum.ForumID, categoryID, title, description, isVisible, isArchived, urlName, forumAdapterName);
+			_forumRepository.Update(forum.ForumID, categoryID, title, description, isVisible, isArchived, urlName, forumAdapterName, isQAForum);
 		}
 
 		public void UpdateLast(Forum forum)
@@ -171,7 +171,10 @@ namespace PopForums.Services
 
 			// post
 			if (user == null || !context.UserCanView)
+			{
 				context.UserCanPost = false;
+				context.DenialReason = Resources.LoginToPost;
+			}
 			else
 				if (!user.IsApproved)
 				{
@@ -339,6 +342,50 @@ namespace PopForums.Services
 		public int GetAggregatePostCount()
 		{
 			return _forumRepository.GetAggregatePostCount();
+		}
+
+		public TopicContainerForQA MapTopicContainerForQA(TopicContainer topicContainer)
+		{
+			var result = new TopicContainerForQA
+			{
+				Forum = topicContainer.Forum,
+				Topic = topicContainer.Topic,
+				Posts = topicContainer.Posts,
+				PagerContext = topicContainer.PagerContext,
+				PermissionContext = topicContainer.PermissionContext,
+				IsSubscribed = topicContainer.IsSubscribed,
+				IsFavorite = topicContainer.IsFavorite,
+				Signatures = topicContainer.Signatures,
+				Avatars = topicContainer.Avatars,
+				VotedPostIDs = topicContainer.VotedPostIDs
+			};
+			try
+			{
+				var questionPost = result.Posts.Single(x => x.IsFirstInTopic);
+				var questionComments = result.Posts.Where(x => x.ParentPostID == questionPost.PostID).ToList();
+				result.QuestionPostWithComments = new PostWithChildren { Post = questionPost, Children = questionComments };
+			}
+			catch (InvalidOperationException)
+			{
+				throw new InvalidOperationException(String.Format("There is no post marked as FirstInTopic for TopicID {0}.", topicContainer.Topic.TopicID));
+			}
+			var answers = result.Posts.Where(x => !x.IsFirstInTopic && (x.ParentPostID == 0)).OrderByDescending(x => x.Votes).ThenByDescending(x => x.PostTime).ToList();
+			if (topicContainer.Topic.AnswerPostID.HasValue)
+			{
+				var acceptedAnswer = answers.SingleOrDefault(x => x.PostID == topicContainer.Topic.AnswerPostID.Value);
+				if (acceptedAnswer != null)
+				{
+					answers.Remove(acceptedAnswer);
+					answers.Insert(0, acceptedAnswer);
+				}
+			}
+			result.AnswersWithComments = new List<PostWithChildren>();
+			foreach (var item in answers)
+			{
+				var comments = result.Posts.Where(x => x.ParentPostID == item.PostID).ToList();
+				result.AnswersWithComments.Add(new PostWithChildren { Post = item, Children = comments });
+			}
+			return result;
 		}
 	}
 }

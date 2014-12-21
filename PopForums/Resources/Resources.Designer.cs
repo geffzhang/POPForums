@@ -160,6 +160,15 @@ namespace PopForums {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Answers.
+        /// </summary>
+        public static string Answers {
+            get {
+                return ResourceManager.GetString("Answers", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Archive.
         /// </summary>
         public static string Archive {
@@ -192,6 +201,15 @@ namespace PopForums {
         public static string AreYouSure {
             get {
                 return ResourceManager.GetString("AreYouSure", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ask A Question.
+        /// </summary>
+        public static string AskAQuestion {
+            get {
+                return ResourceManager.GetString("AskAQuestion", resourceCulture);
             }
         }
         
@@ -2199,6 +2217,15 @@ namespace PopForums {
         public static string PostWait {
             get {
                 return ResourceManager.GetString("PostWait", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        public static string Preview {
+            get {
+                return ResourceManager.GetString("Preview", resourceCulture);
             }
         }
         

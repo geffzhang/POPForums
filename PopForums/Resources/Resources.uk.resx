@@ -1221,4 +1221,13 @@
   <data name="DeletePermanently" xml:space="preserve">
     <value>Видалити файл</value>
   </data>
+  <data name="Preview" xml:space="preserve">
+    <value>Попередній</value>
+  </data>
+  <data name="AskAQuestion" xml:space="preserve">
+    <value>Задайте питання</value>
+  </data>
+  <data name="Answers" xml:space="preserve">
+    <value>відповіді</value>
+  </data>
 </root>

@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using PopForums.Configuration;
 using PopForums.Models;
 using PopForums.Repositories;
+using PopForums.Services;
 
 namespace PopForums.Data.SqlSingleWebServer.Repositories
 {
@@ -95,7 +96,7 @@ namespace PopForums.Data.SqlSingleWebServer.Repositories
 			var wordArray = searchTerm.Split(new [] { ' ' });
 			var wordList = new List<string>();
 			var junkWords = GetJunkWords();
-			var alphaNum = new Regex(@"[\w']{2,}", RegexOptions.Compiled);
+			var alphaNum = SearchService.SearchWordPattern;
 			for (var x = 0; x < wordArray.Length; x++)
 			{
 				foreach (Match match in alphaNum.Matches(wordArray[x]))
@@ -163,7 +164,7 @@ namespace PopForums.Data.SqlSingleWebServer.Repositories
 
 			sb.Append("),\r\nEntries as (SELECT *,ROW_NUMBER() OVER (ORDER BY ");
 			sb.Append(orderBy);
-			sb.Append(") AS Row, COUNT(*) OVER () as cnt FROM FirstEntries WHERE GroupRow = 1)\r\nSELECT TopicID, ForumID, Title, ReplyCount, ViewCount, StartedByUserID, StartedByName, LastPostUserID, LastPostName, LastPostTime, IsClosed, IsPinned, IsDeleted, IsIndexed, UrlName, cnt FROM Entries WHERE Row BETWEEN @StartRow AND @StartRow + @PageSize - 1");
+			sb.Append(") AS Row, COUNT(*) OVER () as cnt FROM FirstEntries WHERE GroupRow = 1)\r\nSELECT TopicID, ForumID, Title, ReplyCount, ViewCount, StartedByUserID, StartedByName, LastPostUserID, LastPostName, LastPostTime, IsClosed, IsPinned, IsDeleted, IsIndexed, UrlName, AnswerPostID, cnt FROM Entries WHERE Row BETWEEN @StartRow AND @StartRow + @PageSize - 1");
 
 			if (words.Length == 0)
 				return topics;

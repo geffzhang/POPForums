@@ -1221,4 +1221,13 @@
   <data name="DeletePermanently" xml:space="preserve">
     <value>Delete Permanently</value>
   </data>
+  <data name="Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="AskAQuestion" xml:space="preserve">
+    <value>Ask A Question</value>
+  </data>
+  <data name="Answers" xml:space="preserve">
+    <value>Answers</value>
+  </data>
 </root>

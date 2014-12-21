@@ -379,6 +379,7 @@ namespace PopForums.Test.Services
 			var userManager = GetMockedUserService();
 			_mockUserRepo.Setup(r => r.GetUserByEmail(oldEmail)).Returns(GetDummyUser(oldName, oldEmail));
 			_mockUserRepo.Setup(r => r.GetUserByEmail(newEmail)).Returns((User)null);
+			_mockSettingsManager.Setup(x => x.Current.IsNewUserApproved).Returns(false);
 			var targetUser = GetDummyUser(oldName, oldEmail);
 			var user = new User(34243, DateTime.MinValue);
 			userManager.ChangeEmail(targetUser, newEmail, user, "123");
@@ -396,6 +397,7 @@ namespace PopForums.Test.Services
 			var userService = GetMockedUserService();
 			_mockUserRepo.Setup(r => r.GetUserByEmail(oldEmail)).Returns(GetDummyUser(oldName, oldEmail));
 			_mockUserRepo.Setup(r => r.GetUserByEmail(newEmail)).Returns(GetDummyUser("Diana", newEmail));
+			_mockSettingsManager.Setup(x => x.Current.IsNewUserApproved).Returns(true);
 			var user = GetDummyUser(oldName, oldEmail);
 			Assert.Throws(typeof(Exception), () => userService.ChangeEmail(user, newEmail, It.IsAny<User>(), It.IsAny<string>()), "The e-mail \"" + newEmail + "\" is already in use.");
 			_mockUserRepo.Verify(r => r.ChangeEmail(It.IsAny<User>(), It.IsAny<string>()), Times.Never());
@@ -406,9 +408,27 @@ namespace PopForums.Test.Services
 		{
 			const string badEmail = "a b @ c";
 			var userManager = GetMockedUserService();
+			_mockSettingsManager.Setup(x => x.Current.IsNewUserApproved).Returns(true);
 			var user = GetDummyUser("", "");
 			Assert.Throws(typeof(Exception), () => userManager.ChangeEmail(user, badEmail, It.IsAny<User>(), It.IsAny<string>()), "E-mail address invalid.");
 			_mockUserRepo.Verify(r => r.ChangeEmail(It.IsAny<User>(), It.IsAny<string>()), Times.Never());
+		}
+
+		[Test]
+		public void ChangeEmailMapsIsApprovedFromSettingsToUserRepoCall()
+		{
+			const string oldName = "Jeff";
+			const string oldEmail = "a@b.com";
+			const string newEmail = "c@d.com";
+
+			var userManager = GetMockedUserService();
+			_mockUserRepo.Setup(r => r.GetUserByEmail(oldEmail)).Returns(GetDummyUser(oldName, oldEmail));
+			_mockUserRepo.Setup(r => r.GetUserByEmail(newEmail)).Returns((User)null);
+			_mockSettingsManager.Setup(x => x.Current.IsNewUserApproved).Returns(true);
+			var targetUser = GetDummyUser(oldName, oldEmail);
+			var user = new User(34243, DateTime.MinValue);
+			userManager.ChangeEmail(targetUser, newEmail, user, "123");
+			_mockUserRepo.Verify(x => x.UpdateIsApproved(targetUser, true), Times.Once());
 		}
 
 		[Test]
@@ -768,7 +788,8 @@ namespace PopForums.Test.Services
 			                      	Aim = userEdit.Aim,
 			                      	Icq = userEdit.Icq,
 			                      	YahooMessenger = userEdit.YahooMessenger,
-			                      	MsnMessenger = userEdit.MsnMessenger
+									Facebook = userEdit.Facebook,
+									Twitter = userEdit.Twitter
 			                      };
 		}
 
@@ -955,7 +976,7 @@ namespace PopForums.Test.Services
 			_mockTextParser.Setup(t => t.ForumCodeToHtml(It.IsAny<string>())).Returns("parsed");
 			var userEdit = new UserEditProfile
 			               	{
-			               		Aim = "a", Dob = new DateTime(2000,1,1), HideVanity = true, Icq = "i", IsDaylightSaving = true, IsPlainText = true, IsSubscribed = true, Location = "l", MsnMessenger = "m", ShowDetails = true, Signature = "s", TimeZone = -7, Web = "w", YahooMessenger = "y"
+			               		Aim = "a", Dob = new DateTime(2000,1,1), HideVanity = true, Icq = "i", IsDaylightSaving = true, IsPlainText = true, IsSubscribed = true, Location = "l", Facebook = "fb", Twitter = "tw", ShowDetails = true, Signature = "s", TimeZone = -7, Web = "w", YahooMessenger = "y"
 			               	};
 			service.EditUserProfile(user, userEdit);
 			_mockProfileRepo.Verify(p => p.Update(It.IsAny<Profile>()), Times.Once());
@@ -967,7 +988,8 @@ namespace PopForums.Test.Services
 			Assert.IsTrue(profile.IsPlainText);
 			Assert.IsTrue(profile.IsSubscribed);
 			Assert.AreEqual("l", profile.Location);
-			Assert.AreEqual("m", profile.MsnMessenger);
+			Assert.AreEqual("fb", profile.Facebook);
+			Assert.AreEqual("tw", profile.Twitter);
 			Assert.IsTrue(profile.ShowDetails);
 			Assert.AreEqual("parsed", profile.Signature);
 			Assert.AreEqual(-7, profile.TimeZone);

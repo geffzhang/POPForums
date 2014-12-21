@@ -13,6 +13,7 @@ namespace PopForums.Configuration.DependencyResolution
 				{
 					scan.TheCallingAssembly();
 					scan.WithDefaultConventions();
+					scan.With(new ControllerConvention());
 				});
 			For<IOwinContext>().Use(x => HttpContext.Current.GetOwinContext());
 		}

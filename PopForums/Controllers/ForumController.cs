@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Web.Mvc;
 using PopForums.Configuration;
+using PopForums.Configuration.DependencyResolution;
 using PopForums.Extensions;
 using PopForums.Models;
 using PopForums.Services;
@@ -13,7 +14,7 @@ namespace PopForums.Controllers
 	{
 		public ForumController()
 		{
-			var serviceLocator = PopForumsActivation.ServiceLocator;
+			var serviceLocator = StructuremapMvc.StructureMapDependencyScope;
 			_settingsManager = serviceLocator.GetInstance<ISettingsManager>();
 			_forumService = serviceLocator.GetInstance<IForumService>();
 			_topicService = serviceLocator.GetInstance<ITopicService>();
@@ -77,6 +78,8 @@ namespace PopForums.Controllers
 					return View(adapter.ForumAdapter.Model);
 				return View(adapter.ForumAdapter.ViewName, adapter.ForumAdapter.Model);
 			}
+			if (forum.IsQAForum)
+				return View("IndexQA", container);
 			return View(container);
 		}
 
@@ -111,8 +114,8 @@ namespace PopForums.Controllers
 				return Json(new BasicJsonMessage {Message = Resources.ForumNoPost, Result = false});
 			if (_postService.IsNewPostDupeOrInTimeLimit(newPost, this.CurrentUser()))
 				return Json(new BasicJsonMessage { Message = String.Format(Resources.PostWait, _settingsManager.Current.MinimumSecondsBetweenPosts), Result = false });
-            if (String.IsNullOrEmpty(newPost.FullText))
-                return Json(new BasicJsonMessage { Message = Resources.PostEmpty, Result = false });
+			if (String.IsNullOrWhiteSpace(newPost.FullText) || String.IsNullOrWhiteSpace(newPost.Title))
+				return Json(new BasicJsonMessage { Message = Resources.PostEmpty, Result = false });
 
 			var user = this.CurrentUser();
 			var urlHelper = new UrlHelper(ControllerContext.RequestContext);
@@ -167,7 +170,7 @@ namespace PopForums.Controllers
 				return this.Forbidden("Forbidden", null);
 			}
 
-			PagerContext pagerContext;
+			PagerContext pagerContext = null;
 			var isSubscribed = false;
 			var isFavorite = false;
 			var user = this.CurrentUser();
@@ -182,7 +185,11 @@ namespace PopForums.Controllers
 				if (user.IsInRole(PermanentRoles.Moderator))
 					ViewBag.CategorizedForums = _forumService.GetCategorizedForumContainer();
 			}
-			var posts = _postService.GetPosts(topic, permissionContext.UserCanModerate, page, out pagerContext);
+			List<Post> posts;
+			if (forum.IsQAForum)
+				posts = _postService.GetPosts(topic, permissionContext.UserCanModerate);
+			else
+				posts = _postService.GetPosts(topic, permissionContext.UserCanModerate, page, out pagerContext);
 			if (posts.Count == 0)
 				return this.NotFound("NotFound", null);
 			var signatures = _profileService.GetSignatures(posts);
@@ -196,6 +203,11 @@ namespace PopForums.Controllers
 				if (String.IsNullOrWhiteSpace(adapter.ForumAdapter.ViewName))
 					return View(adapter.ForumAdapter.Model);
 				return View(adapter.ForumAdapter.ViewName, adapter.ForumAdapter.Model);
+			}
+			if (forum.IsQAForum)
+			{
+				var containerForQA = _forumService.MapTopicContainerForQA(container);
+				return View("TopicQA", containerForQA);
 			}
 			return View(container);
 		}
@@ -259,6 +271,12 @@ namespace PopForums.Controllers
 			{
 				var post = _postService.Get(quotePostID);
 				newPost.FullText = _postService.GetPostForQuote(post, user, forcePlainText);
+			}
+
+			if (forum.IsQAForum)
+			{
+				newPost.IncludeSignature = false;
+				return View("NewComment", newPost);
 			}
 			return View("NewReply", newPost);
 		}
@@ -518,6 +536,14 @@ namespace PopForums.Controllers
 			_postService.VotePost(post, user, userProfileUrl, topicUrl, topic.Title);
 			var count = _postService.GetVoteCount(post);
 			return View("Votes", count);
+		}
+
+		[HttpPost]
+		[ValidateInput(false)]
+		public ContentResult PreviewText(string fullText, bool isPlainText)
+		{
+			var result = _postService.GenerateParsedTextPreview(fullText, isPlainText);
+			return Content(result, "text/html");
 		}
 
 		private static TopicContainer ComposeTopicContainer(Topic topic, Forum forum, ForumPermissionContext permissionContext, bool isSubscribed, List<Post> posts, PagerContext pagerContext, bool isFavorite, Dictionary<int, string> signatures, Dictionary<int, int> avatars, List<int> votedPostIDs)

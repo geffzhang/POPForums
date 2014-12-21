@@ -83,13 +83,14 @@ namespace PopForums.Test.Services
 			const int sortOrder = 5;
 			const int forumID = 123;
 			const string adapter = "Jeff.Adapter";
+			const bool isQAForum = true;
 			var forum = new Forum(forumID) {CategoryID = categoryID, Title = title, Description = desc, IsVisible = isVisible, IsArchived = isArchived, SortOrder = sortOrder};
-			_mockForumRepo.Setup(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter)).Returns(forum);
+			_mockForumRepo.Setup(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter, isQAForum)).Returns(forum);
 			_mockForumRepo.Setup(f => f.GetUrlNamesThatStartWith(It.IsAny<string>())).Returns(new List<string>());
 			_mockForumRepo.Setup(f => f.GetAll()).Returns(new List<Forum> { new Forum(1) { SortOrder = 9 }, new Forum(2) { SortOrder = 6 }, forum});
-			var result = forumService.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, adapter);
+			var result = forumService.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, adapter, isQAForum);
 			Assert.AreEqual(forum, result);
-			_mockForumRepo.Verify(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter), Times.Once());
+			_mockForumRepo.Verify(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter, isQAForum), Times.Once());
 			_mockForumRepo.Verify(f => f.UpdateSortOrder(123, 0), Times.Once());
 			_mockForumRepo.Verify(f => f.UpdateSortOrder(2, 2), Times.Once());
 			_mockForumRepo.Verify(f => f.UpdateSortOrder(1, 4), Times.Once());
@@ -107,11 +108,12 @@ namespace PopForums.Test.Services
 			const int sortOrder = 5;
 			const int forumID = 123;
 			const string adapter = "Jeff.Adapter";
+			const bool isQAForum = true;
 			var forum = new Forum(forumID) { CategoryID = categoryID, Title = title, Description = desc, IsVisible = isVisible, IsArchived = isArchived, SortOrder = sortOrder };
-			_mockForumRepo.Setup(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter)).Returns(forum);
+			_mockForumRepo.Setup(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter, isQAForum)).Returns(forum);
 			_mockForumRepo.Setup(f => f.GetUrlNamesThatStartWith(It.IsAny<string>())).Returns(new List<string>());
-			forumService.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, adapter);
-			_mockForumRepo.Verify(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, "forum-title", adapter), Times.Once());
+			forumService.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, adapter, isQAForum);
+			_mockForumRepo.Verify(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, "forum-title", adapter, isQAForum), Times.Once());
 		}
 
 		[Test]
@@ -126,11 +128,12 @@ namespace PopForums.Test.Services
 			const int sortOrder = 5;
 			const int forumID = 123;
 			const string adapter = "Jeff.Adapter";
+			const bool isQAForum = true;
 			var forum = new Forum(forumID) { CategoryID = categoryID, Title = title, Description = desc, IsVisible = isVisible, IsArchived = isArchived, SortOrder = sortOrder };
-			_mockForumRepo.Setup(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter)).Returns(forum);
+			_mockForumRepo.Setup(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, It.IsAny<String>(), adapter, isQAForum)).Returns(forum);
 			_mockForumRepo.Setup(f => f.GetUrlNamesThatStartWith(title.ToUrlName())).Returns(new List<string> {"forum-title", "forum-title-but-not", "forum-title-2"});
-			forumService.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, adapter);
-			_mockForumRepo.Verify(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, "forum-title-3", adapter), Times.Once());
+			forumService.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, adapter, isQAForum);
+			_mockForumRepo.Verify(f => f.Create(categoryID, title, desc, isVisible, isArchived, sortOrder, "forum-title-3", adapter, isQAForum), Times.Once());
 		}
 
 		[Test]
@@ -833,6 +836,195 @@ namespace PopForums.Test.Services
 			_mockSettingsManager.Setup(s => s.Current.ForumTitle).Returns("");
 			service.GetCategorizedForumContainerFilteredForUser(user);
 			_mockLastReadService.Verify(l => l.GetForumReadStatus(user, It.IsAny<CategorizedForumContainer>()), Times.Exactly(1));
+		}
+
+		[Test]
+		public void MapTopicContainerForQAMapsBaseProperties()
+		{
+			var topicContainer = new TopicContainer
+			{
+				Forum = new Forum(1),
+				Topic = new Topic(2),
+				Posts = new List<Post> {new Post(123) { IsFirstInTopic = true }},
+				PagerContext = new PagerContext(),
+				PermissionContext = new ForumPermissionContext(),
+				IsSubscribed = true,
+				IsFavorite = true,
+				Signatures = new Dictionary<int, string>(),
+				Avatars = new Dictionary<int, int>(),
+				VotedPostIDs = new List<int>()
+			};
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.AreSame(topicContainer.Forum, result.Forum);
+			Assert.AreSame(topicContainer.Topic, result.Topic);
+			Assert.AreSame(topicContainer.Posts, result.Posts);
+			Assert.AreSame(topicContainer.PagerContext, result.PagerContext);
+			Assert.AreSame(topicContainer.PermissionContext, result.PermissionContext);
+			Assert.IsTrue(topicContainer.IsSubscribed);
+			Assert.IsTrue(topicContainer.IsFavorite);
+			Assert.AreSame(topicContainer.Signatures, result.Signatures);
+			Assert.AreSame(topicContainer.Avatars, result.Avatars);
+			Assert.AreSame(topicContainer.VotedPostIDs, result.VotedPostIDs);
+		}
+
+		[Test]
+		public void MapTopicContainerGrabsFirstPostForQuestion()
+		{
+			var posts = new List<Post>
+			{
+				new Post(1),
+				new Post(2) {IsFirstInTopic = true}
+			};
+			var topicContainer = new TopicContainer {Posts = posts, Topic = new Topic(123)};
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.AreEqual(2, result.QuestionPostWithComments.Post.PostID);
+		}
+
+		[Test]
+		public void MapTopicContainerThrowsWithNoFirstInTopicPost()
+		{
+			var posts = new List<Post>
+			{
+				new Post(1),
+				new Post(2)
+			};
+			var topicContainer = new TopicContainer { Posts = posts, Topic = new Topic(123) };
+			var service = GetService();
+			Assert.Throws<InvalidOperationException>(() => service.MapTopicContainerForQA(topicContainer));
+		}
+
+		[Test]
+		public void MapTopicContainerThrowsWithMoreThanOneFirstInTopicPost()
+		{
+			var posts = new List<Post>
+			{
+				new Post(1) {IsFirstInTopic = true},
+				new Post(2) {IsFirstInTopic = true}
+			};
+			var topicContainer = new TopicContainer { Posts = posts, Topic = new Topic(123) };
+			var service = GetService();
+			Assert.Throws<InvalidOperationException>(() => service.MapTopicContainerForQA(topicContainer));
+		}
+
+		[Test]
+		public void MapTopicContainerSetsQuestionsWithNoParentAsAnswers()
+		{
+			var post1 = new Post(1) {ParentPostID = 0};
+			var post2 = new Post(2) {IsFirstInTopic = true};
+			var post3 = new Post(3) {ParentPostID = 2};
+			var post4 = new Post(4) {ParentPostID = 1};
+			var post5 = new Post(5) {ParentPostID = 3};
+			var posts = new List<Post> {post1, post2, post3, post4, post5};
+			var topicContainer = new TopicContainer { Posts = posts, Topic = new Topic(1234)};
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.AreEqual(1, result.AnswersWithComments.Count);
+			Assert.AreSame(post1, result.AnswersWithComments[0].Post);
+		}
+
+		[Test]
+		public void MapTopicContainerMapsCommentsToParentQuestionsAndAnswers()
+		{
+			var post1 = new Post(1) { ParentPostID = 0 };
+			var post2 = new Post(2) { IsFirstInTopic = true };
+			var post3 = new Post(3) { ParentPostID = 0 };
+			var post4 = new Post(4) { ParentPostID = 1 };
+			var post5 = new Post(5) { ParentPostID = 2 };
+			var post6 = new Post(6) { ParentPostID = 3 };
+			var post7 = new Post(7) { ParentPostID = 3 };
+			var posts = new List<Post> { post1, post2, post3, post4, post5, post6, post7 };
+			var topicContainer = new TopicContainer { Posts = posts, Topic = new Topic(1234)};
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.IsTrue(result.AnswersWithComments[0].Children.Count == 1);
+			Assert.IsTrue(result.AnswersWithComments[0].Children.Contains(post4));
+			Assert.IsTrue(result.AnswersWithComments[1].Children.Count == 2);
+			Assert.IsTrue(result.AnswersWithComments[1].Children.Contains(post6));
+			Assert.IsTrue(result.AnswersWithComments[1].Children.Contains(post7));
+		}
+
+		[Test]
+		public void MapTopicContainerMapsCommentsToQuestion()
+		{
+			var post1 = new Post(1) { ParentPostID = 0 };
+			var post2 = new Post(2) { IsFirstInTopic = true };
+			var post3 = new Post(3) { ParentPostID = 0 };
+			var post4 = new Post(4) { ParentPostID = 1 };
+			var post5 = new Post(5) { ParentPostID = 2 };
+			var post6 = new Post(6) { ParentPostID = 2 };
+			var post7 = new Post(7) { ParentPostID = 3 };
+			var posts = new List<Post> { post1, post2, post3, post4, post5, post6, post7 };
+			var topicContainer = new TopicContainer { Posts = posts, Topic = new Topic(1234)};
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.IsTrue(result.QuestionPostWithComments.Children.Count == 2);
+			Assert.IsTrue(result.QuestionPostWithComments.Children.Contains(post5));
+			Assert.IsTrue(result.QuestionPostWithComments.Children.Contains(post6));
+		}
+
+		[Test]
+		public void MapTopicContainerOrdersAnswersByVoteThenDate()
+		{
+			var post1 = new Post(1) { IsFirstInTopic = true };
+			var post2 = new Post(2) { Votes = 7, PostTime = new DateTime(2000, 1, 1) };
+			var post3 = new Post(3) { Votes = 7, PostTime = new DateTime(2000, 2, 1) };
+			var post4 = new Post(4) { Votes = 2 };
+			var post5 = new Post(5) { Votes = 3 };
+			var post6 = new Post(6) { Votes = 8 };
+			var post7 = new Post(7) { Votes = 5 };
+			var posts = new List<Post> { post1, post2, post3, post4, post5, post6, post7 };
+			var topic = new Topic(123) { AnswerPostID = null };
+			var topicContainer = new TopicContainer { Posts = posts, Topic = topic };
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.AreSame(post6, result.AnswersWithComments[0].Post);
+			Assert.AreSame(post3, result.AnswersWithComments[1].Post);
+			Assert.AreSame(post2, result.AnswersWithComments[2].Post);
+			Assert.AreSame(post7, result.AnswersWithComments[3].Post);
+			Assert.AreSame(post5, result.AnswersWithComments[4].Post);
+			Assert.AreSame(post4, result.AnswersWithComments[5].Post);
+		}
+
+		[Test]
+		public void MapTopicContainerOrdersAnswersByAnswerThenVoteThenDate()
+		{
+			var post1 = new Post(1) { IsFirstInTopic = true };
+			var post2 = new Post(2) { Votes = 7, PostTime = new DateTime(2000, 1, 1) };
+			var post3 = new Post(3) { Votes = 7, PostTime = new DateTime(2000, 2, 1) };
+			var post4 = new Post(4) { Votes = 2 };
+			var post5 = new Post(5) { Votes = 3 };
+			var post6 = new Post(6) { Votes = 8 };
+			var post7 = new Post(7) { Votes = 5 };
+			var posts = new List<Post> { post1, post2, post3, post4, post5, post6, post7 };
+			var topic = new Topic(123) {AnswerPostID = 5};
+			var topicContainer = new TopicContainer { Posts = posts, Topic = topic };
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.AreSame(post5, result.AnswersWithComments[0].Post);
+			Assert.AreSame(post6, result.AnswersWithComments[1].Post);
+			Assert.AreSame(post3, result.AnswersWithComments[2].Post);
+			Assert.AreSame(post2, result.AnswersWithComments[3].Post);
+			Assert.AreSame(post7, result.AnswersWithComments[4].Post);
+			Assert.AreSame(post4, result.AnswersWithComments[5].Post);
+		}
+
+		[Test]
+		public void MapTopicContainerDoesNotMapCommentsForTopQuestionAsReplies()
+		{
+			var post1 = new Post(1) { ParentPostID = 0 };
+			var post2 = new Post(2) { IsFirstInTopic = true };
+			var post3 = new Post(3) { ParentPostID = 0 };
+			var post4 = new Post(4) { ParentPostID = 1 };
+			var post5 = new Post(5) { ParentPostID = 2 };
+			var post6 = new Post(6) { ParentPostID = 3 };
+			var post7 = new Post(7) { ParentPostID = 3 };
+			var posts = new List<Post> { post1, post2, post3, post4, post5, post6, post7 };
+			var topicContainer = new TopicContainer { Posts = posts, Topic = new Topic(1234) };
+			var service = GetService();
+			var result = service.MapTopicContainerForQA(topicContainer);
+			Assert.IsFalse(result.AnswersWithComments.Any(x => x.Post.PostID == post5.PostID));
 		}
 	}
 }
