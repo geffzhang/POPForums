@@ -1,4 +1,7 @@
 packages
-/PopForums.AzureWorker/csx/Debug
-/PopForums.AzureWorker/csx/Release
-/PopForums.AzureWorker/rcf/Debug/PopForums.BackgroundWorkerContent
+/.vs/config
+/.vs
+/src/PopForums.Web/project.lock.json
+/src/PopForums.Sql/project.lock.json
+/src/PopForums/project.lock.json
+/src/PopForums.Test/project.lock.json
