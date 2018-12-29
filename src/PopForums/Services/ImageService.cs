@@ -1,9 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
-using ImageProcessorCore;
 using PopForums.Models;
 using PopForums.Repositories;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
+using SixLabors.Primitives;
 
 namespace PopForums.Services
 {
@@ -84,41 +88,23 @@ namespace PopForums.Services
 
 		public byte[] ConstrainResize(byte[] bytes, int maxWidth, int maxHeight, int qualityLevel)
 		{
-			var stream = new MemoryStream(bytes);
-			var originalImage = new Image(stream);
-			int newHeight;
-			int newWidth;
-			CalculateResize(maxWidth, maxHeight, originalImage.Width, originalImage.Height, out newWidth, out newHeight);
-			var image = Resize(bytes, newWidth, newHeight, qualityLevel);
-			stream.Dispose();
-			return image;
-		}
-
-		private void CalculateResize(int maxWidth, int maxHeight, int originalWidth, int originalHeight, out int newWidth, out int newHeight)
-		{
-			newWidth = originalWidth;
-			newHeight = originalHeight;
-			if (originalHeight < maxHeight && originalWidth < maxWidth)
-				return;
-			var xRatio = (double)maxWidth / originalWidth;
-			var yRatio = (double)maxHeight / originalHeight;
-			var ratio = Math.Min(xRatio, yRatio);
-			newWidth = (int)(originalWidth * ratio);
-			newHeight = (int)(originalHeight * ratio);
-		}
-
-		private byte[] Resize(byte[] bytes, int width, int height, int qualityLevel)
-		{
 			if (bytes == null)
 				throw new Exception("Bytes parameter is null.");
-			var output = new MemoryStream();
 			using (var stream = new MemoryStream(bytes))
+			using (var image = Image.Load<Rgba32>(stream))
+			using (var output = new MemoryStream())
 			{
-				var image = new Image(stream);
-				image.Resize(width, height)
-					.SaveAsJpeg(output, qualityLevel);
+				var options = new ResizeOptions
+				{
+					Size = new Size(maxWidth, maxHeight),
+					Mode = ResizeMode.Max
+				};
+				image.Mutate(x => x
+					.Resize(options)
+					.GaussianSharpen(0.5f));
+				image.Save(output, new JpegEncoder { Quality = qualityLevel });
+				return output.ToArray();
 			}
-			return output.ToArray();
 		}
 	}
 }

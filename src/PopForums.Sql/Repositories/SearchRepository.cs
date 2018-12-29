@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
-using PopForums.Configuration;
+using PopForums.Data.Sql;
 using PopForums.Models;
 using PopForums.Repositories;
 using PopForums.Services;
 
-namespace PopForums.Data.Sql.Repositories
+namespace PopForums.Sql.Repositories
 {
 	public class SearchRepository : ISearchRepository
 	{
@@ -18,44 +18,58 @@ namespace PopForums.Data.Sql.Repositories
 
 		private readonly ISqlObjectFactory _sqlObjectFactory;
 
-		public List<string> GetJunkWords()
+		public virtual List<string> GetJunkWords()
 		{
 			var words = new List<string>();
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("SELECT JunkWord FROM pf_JunkWords ORDER BY JunkWord")
+				connection.Command(_sqlObjectFactory, "SELECT JunkWord FROM pf_JunkWords ORDER BY JunkWord")
 					.ExecuteReader()
 					.ReadAll(r => words.Add(r.GetString(0))));
 			return words;
 		}
 
-		public void CreateJunkWord(string word)
+		public virtual void CreateJunkWord(string word)
 		{
 			var exists = false;
 			_sqlObjectFactory.GetConnection().Using(connection => exists =
-				connection.Command("SELECT JunkWord FROM pf_JunkWords WHERE JunkWord LIKE @JunkWord")
-					.AddParameter("@JunkWord", word)
+				connection.Command(_sqlObjectFactory, "SELECT JunkWord FROM pf_JunkWords WHERE JunkWord LIKE @JunkWord")
+					.AddParameter(_sqlObjectFactory, "@JunkWord", word)
 					.ExecuteReader().Read());
 			if (exists)
 				return;
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("INSERT INTO pf_JunkWords (JunkWord) VALUES (@JunkWord)")
-				.AddParameter("@JunkWord", word)
+				connection.Command(_sqlObjectFactory, "INSERT INTO pf_JunkWords (JunkWord) VALUES (@JunkWord)")
+				.AddParameter(_sqlObjectFactory, "@JunkWord", word)
 				.ExecuteNonQuery());
 		}
 
-		public void DeleteJunkWord(string word)
+		public virtual void DeleteJunkWord(string word)
 		{
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("DELETE FROM pf_JunkWords WHERE JunkWord = @JunkWord")
-				.AddParameter("@JunkWord", word)
+				connection.Command(_sqlObjectFactory, "DELETE FROM pf_JunkWords WHERE JunkWord = @JunkWord")
+				.AddParameter(_sqlObjectFactory, "@JunkWord", word)
 				.ExecuteNonQuery());
 		}
 
 		public Topic GetNextTopicForIndexing()
 		{
+			var sql = @"WITH cte AS (
+SELECT TOP(1) TopicID
+FROM pf_SearchQueue WITH (ROWLOCK, READPAST)
+ORDER BY Id)
+DELETE FROM cte
+OUTPUT DELETED.TopicID;";
+			var topicID = 0;
+			_sqlObjectFactory.GetConnection().Using(connection =>
+				connection.Command(_sqlObjectFactory, sql)
+				.ExecuteReader()
+				.ReadOne(r => topicID = r.GetInt32(0)));
+			if (topicID == 0)
+				return null;
 			Topic topic = null;
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("SELECT TOP 1 " + TopicRepository.TopicFields + " FROM pf_Topic WHERE IsDeleted = 0 AND IsIndexed = 0 ORDER BY LastPostTime")
+				connection.Command(_sqlObjectFactory, "SELECT " + TopicRepository.TopicFields + " FROM pf_Topic WHERE TopicID = @TopicID")
+				.AddParameter(_sqlObjectFactory, "@TopicID", topicID)
 				.ExecuteReader()
 				.ReadOne(r => topic = TopicRepository.GetTopicFromReader(r)));
 			return topic;
@@ -64,30 +78,30 @@ namespace PopForums.Data.Sql.Repositories
 		public void MarkTopicAsIndexed(int topicID)
 		{
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("UPDATE pf_Topic SET IsIndexed = 1 WHERE TopicID = @TopicID")
-				.AddParameter("@TopicID", topicID)
+				connection.Command(_sqlObjectFactory, "UPDATE pf_Topic SET IsIndexed = 1 WHERE TopicID = @TopicID")
+				.AddParameter(_sqlObjectFactory, "@TopicID", topicID)
 				.ExecuteNonQuery());
 		}
 
-		public void DeleteAllIndexedWordsForTopic(int topicID)
+		public virtual void DeleteAllIndexedWordsForTopic(int topicID)
 		{
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("DELETE FROM pf_TopicSearchWords WHERE TopicID = @TopicID")
-				.AddParameter("@TopicID", topicID)
+				connection.Command(_sqlObjectFactory, "DELETE FROM pf_TopicSearchWords WHERE TopicID = @TopicID")
+				.AddParameter(_sqlObjectFactory, "@TopicID", topicID)
 				.ExecuteNonQuery());
 		}
 
-		public void SaveSearchWord(int topicID, string word, int rank)
+		public virtual void SaveSearchWord(int topicID, string word, int rank)
 		{
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("INSERT INTO pf_TopicSearchWords (SearchWord, TopicID, Rank) VALUES (@SearchWord, @TopicID, @Rank)")
-				.AddParameter("@SearchWord", word)
-				.AddParameter("@TopicID", topicID)
-				.AddParameter("@Rank", rank)
+				connection.Command(_sqlObjectFactory, "INSERT INTO pf_TopicSearchWords (SearchWord, TopicID, Rank) VALUES (@SearchWord, @TopicID, @Rank)")
+				.AddParameter(_sqlObjectFactory, "@SearchWord", word)
+				.AddParameter(_sqlObjectFactory, "@TopicID", topicID)
+				.AddParameter(_sqlObjectFactory, "@Rank", rank)
 				.ExecuteNonQuery());
 		}
 
-		public List<Topic> SearchTopics(string searchTerm, List<int> hiddenForums, SearchType searchType, int startRow, int pageSize, out int topicCount)
+		public virtual List<Topic> SearchTopics(string searchTerm, List<int> hiddenForums, SearchType searchType, int startRow, int pageSize, out int topicCount)
 		{
 			topicCount = 0;
 			if (searchTerm.Trim() == String.Empty)
@@ -172,11 +186,11 @@ namespace PopForums.Data.Sql.Repositories
 
 
 			var connection = _sqlObjectFactory.GetConnection();
-			var command = connection.Command(sb.ToString());
-			command.AddParameter("@StartRow", startRow);
-			command.AddParameter("@PageSize", pageSize);
+			var command = connection.Command(_sqlObjectFactory, sb.ToString());
+			command.AddParameter(_sqlObjectFactory, "@StartRow", startRow);
+			command.AddParameter(_sqlObjectFactory, "@PageSize", pageSize);
 			foreach (var item in wordParameters)
-				command.AddParameter(item.Key, item.Value);
+				command.AddParameter(_sqlObjectFactory, item.Key, item.Value);
 			connection.Open();
 			var reader = command.ExecuteReader();
 

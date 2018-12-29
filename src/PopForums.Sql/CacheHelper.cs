@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Microsoft.Extensions.Caching.Memory;
 using PopForums.Configuration;
 
@@ -31,9 +32,27 @@ namespace PopForums.Data.Sql
 			_cache.Set(key, value, options);
 		}
 
-		public object GetCacheObject(string key)
+		public void SetLongTermCacheObject(string key, object value)
 		{
-			return _cache.Get(key);
+			var options = new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(60) };
+			_cache.Set(key, value, options);
+		}
+
+		public void SetPagedListCacheObject<T>(string rootKey, int page, List<T> value)
+		{
+			_cache.TryGetValue(rootKey, out Dictionary<int, List<T>> rootPages);
+			if (rootPages == null)
+				rootPages = new Dictionary<int, List<T>>();
+			else if (rootPages.ContainsKey(page))
+				rootPages.Remove(page);
+			rootPages.Add(page, value);
+			var options = new MemoryCacheEntryOptions { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(_config.CacheSeconds) };
+			_cache.Set(rootKey, rootPages, options);
+		}
+
+		public void RemoveCacheObject(string key)
+		{
+			_cache.Remove(key);
 		}
 
 		public T GetCacheObject<T>(string key)
@@ -42,9 +61,15 @@ namespace PopForums.Data.Sql
 			return cacheObject != null ? (T)cacheObject : default(T);
 		}
 
-		public void RemoveCacheObject(string key)
+		public List<T> GetPagedListCacheObject<T>(string rootKey, int page)
 		{
-			_cache.Remove(key);
+			Dictionary<int, List<T>> rootPages;
+			_cache.TryGetValue(rootKey, out rootPages);
+			if (rootPages == null)
+				return null;
+			if (rootPages.ContainsKey(page))
+				return rootPages[page];
+			return null;
 		}
 	}
 }

@@ -33,6 +33,7 @@ namespace PopForums.Services
 		int TopicLastPostID(int topicID);
 		void HardDeleteTopic(Topic topic, User user);
 		void SetAnswer(User user, Topic topic, Post post, string userUrl, string topicUrl);
+		void MarkTopicForIndexing(int topicID);
 	}
 
 	public class TopicService : ITopicService
@@ -119,7 +120,7 @@ namespace PopForums.Services
 
 		public Post PostReply(Topic topic, User user, int parentPostID, string ip, bool isFirstInTopic, NewPost newPost, DateTime postTime, string topicLink, Func<User, string> unsubscribeLinkGenerator, string userUrl, Func<Post, string> postLinkGenerator)
 		{
-			newPost.Title = _textParsingService.EscapeHtmlAndCensor(newPost.Title);
+			newPost.Title = _textParsingService.Censor(newPost.Title);
 			if (newPost.IsPlainText)
 				newPost.FullText = _textParsingService.ForumCodeToHtml(newPost.FullText);
 			else
@@ -316,6 +317,11 @@ namespace PopForums.Services
 				_eventPublisher.ProcessEvent(message, answerUser, EventDefinitionService.StaticEventIDs.QuestionAnswered, false);
 			}
 			_topicRepository.UpdateAnswerPostID(topic.TopicID, post.PostID);
+		}
+
+		public void MarkTopicForIndexing(int topicID)
+		{
+			_topicRepository.MarkTopicForIndexing(topicID);
 		}
 	}
 }

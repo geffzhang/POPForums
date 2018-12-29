@@ -20,7 +20,7 @@ namespace PopForums.Services
 		bool IsNewPostDupeOrInTimeLimit(NewPost newPost, User user);
 		int GetTopicPageForPost(Post post, bool includeDeleted, out Topic topic);
 		int GetPostCount(User user);
-		PostEdit GetPostForEdit(Post post, User user, bool isMobile);
+		PostEdit GetPostForEdit(Post post, User user);
 		void EditPost(Post post, PostEdit postEdit, User editingUser);
 		void Delete(Post post, User user);
 		void Undelete(Post post, User user);
@@ -36,7 +36,7 @@ namespace PopForums.Services
 
 	public class PostService : IPostService
 	{
-		public PostService(IPostRepository postRepository, IProfileRepository profileRepository, ISettingsManager settingsManager, ITopicService topicService, ITextParsingService textParsingService, IModerationLogService moderationLogService, IForumService forumService, IEventPublisher eventPublisher, IUserService userService, IFeedService feedService)
+		public PostService(IPostRepository postRepository, IProfileRepository profileRepository, ISettingsManager settingsManager, ITopicService topicService, ITextParsingService textParsingService, IModerationLogService moderationLogService, IForumService forumService, IEventPublisher eventPublisher, IUserService userService, IFeedService feedService, ITopicRepository topicRepository)
 		{
 			_postRepository = postRepository;
 			_profileRepository = profileRepository;
@@ -48,6 +48,7 @@ namespace PopForums.Services
 			_eventPublisher = eventPublisher;
 			_userService = userService;
 			_feedService = feedService;
+			_topicRepository = topicRepository;
 		}
 
 		private readonly IPostRepository _postRepository;
@@ -60,6 +61,7 @@ namespace PopForums.Services
 		private readonly IEventPublisher _eventPublisher;
 		private readonly IUserService _userService;
 		private readonly IFeedService _feedService;
+		private readonly ITopicRepository _topicRepository;
 
 		public List<Post> GetPosts(Topic topic, bool includeDeleted, int pageIndex, out PagerContext pagerContext)
 		{
@@ -144,7 +146,7 @@ namespace PopForums.Services
 			return _postRepository.GetPostCount(user.UserID);
 		}
 
-		public PostEdit GetPostForEdit(Post post, User user, bool isMobile)
+		public PostEdit GetPostForEdit(Post post, User user)
 		{
 			if (post == null)
 				throw new ArgumentNullException("post");
@@ -152,7 +154,7 @@ namespace PopForums.Services
 				throw new ArgumentNullException("user");
 			var profile = _profileRepository.GetProfile(user.UserID);
 			var postEdit = new PostEdit(post) { IsPlainText = profile.IsPlainText };
-			if (profile.IsPlainText || isMobile)
+			if (profile.IsPlainText)
 			{
 				postEdit.FullText = _textParsingService.HtmlToForumCode(post.FullText);
 				postEdit.IsPlainText = true;
@@ -182,7 +184,7 @@ namespace PopForums.Services
 		public void EditPost(Post post, PostEdit postEdit, User editingUser)
 		{
 			var oldText = post.FullText;
-			post.Title = _textParsingService.EscapeHtmlAndCensor(postEdit.Title);
+			post.Title = _textParsingService.Censor(postEdit.Title);
 			if (postEdit.IsPlainText)
 				post.FullText = _textParsingService.ForumCodeToHtml(postEdit.FullText);
 			else
@@ -193,6 +195,7 @@ namespace PopForums.Services
 			post.IsEdited = true;
 			_postRepository.Update(post);
 			_moderationLogService.LogPost(editingUser, ModerationType.PostEdit, post, postEdit.Comment, oldText);
+			_topicRepository.MarkTopicForIndexing(post.TopicID);
 		}
 
 		public void Delete(Post post, User user)

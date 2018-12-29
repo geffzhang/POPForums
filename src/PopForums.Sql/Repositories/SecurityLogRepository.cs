@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
+using PopForums.Data.Sql;
 using PopForums.Models;
 using PopForums.Repositories;
 
-namespace PopForums.Data.Sql.Repositories
+namespace PopForums.Sql.Repositories
 {
 	public class SecurityLogRepository : ISecurityLogRepository
 	{
@@ -17,13 +18,13 @@ namespace PopForums.Data.Sql.Repositories
 		public void Create(SecurityLogEntry logEntry)
 		{
 			_sqlObjectFactory.GetConnection().Using(c =>
-				c.Command("INSERT INTO pf_SecurityLog (SecurityLogType, UserID, TargetUserID, IP, Message, ActivityDate) VALUES (@SecurityLogType, @UserID, @TargetUserID, @IP, @Message, @ActivityDate)")
-				.AddParameter("@SecurityLogType", logEntry.SecurityLogType)
-				.AddParameter("@UserID", logEntry.UserID.GetObjectOrDbNull())
-				.AddParameter("@TargetUserID", logEntry.TargetUserID.GetObjectOrDbNull())
-				.AddParameter("@IP", logEntry.IP)
-				.AddParameter("@Message", logEntry.Message)
-				.AddParameter("@ActivityDate", logEntry.ActivityDate)
+				c.Command(_sqlObjectFactory, "INSERT INTO pf_SecurityLog (SecurityLogType, UserID, TargetUserID, IP, Message, ActivityDate) VALUES (@SecurityLogType, @UserID, @TargetUserID, @IP, @Message, @ActivityDate)")
+				.AddParameter(_sqlObjectFactory, "@SecurityLogType", logEntry.SecurityLogType)
+				.AddParameter(_sqlObjectFactory, "@UserID", logEntry.UserID.GetObjectOrDbNull())
+				.AddParameter(_sqlObjectFactory, "@TargetUserID", logEntry.TargetUserID.GetObjectOrDbNull())
+				.AddParameter(_sqlObjectFactory, "@IP", logEntry.IP)
+				.AddParameter(_sqlObjectFactory, "@Message", logEntry.Message)
+				.AddParameter(_sqlObjectFactory, "@ActivityDate", logEntry.ActivityDate)
 				.ExecuteNonQuery());
 		}
 
@@ -31,10 +32,10 @@ namespace PopForums.Data.Sql.Repositories
 		{
 			var list = new List<SecurityLogEntry>();
 			_sqlObjectFactory.GetConnection().Using(c =>
-				c.Command("SELECT SecurityLogID, SecurityLogType, UserID, TargetUserID, IP, Message, ActivityDate FROM pf_SecurityLog WHERE UserID = @UserID OR TargetUserID = @UserID AND ActivityDate >= @StartDate AND ActivityDate <= @EndDate ORDER BY ActivityDate")
-				.AddParameter("@UserID", userID)
-				.AddParameter("@StartDate", startDate)
-				.AddParameter("@EndDate", endDate)
+				c.Command(_sqlObjectFactory, "SELECT SecurityLogID, SecurityLogType, UserID, TargetUserID, IP, Message, ActivityDate FROM pf_SecurityLog WHERE UserID = @UserID OR TargetUserID = @UserID AND ActivityDate >= @StartDate AND ActivityDate <= @EndDate ORDER BY ActivityDate")
+				.AddParameter(_sqlObjectFactory, "@UserID", userID)
+				.AddParameter(_sqlObjectFactory, "@StartDate", startDate)
+				.AddParameter(_sqlObjectFactory, "@EndDate", endDate)
 				.ExecuteReader()
 				.ReadAll(r => list.Add(new SecurityLogEntry
 				                       	{
@@ -53,10 +54,10 @@ namespace PopForums.Data.Sql.Repositories
 		{
 			var list = new List<IPHistoryEvent>();
 			_sqlObjectFactory.GetConnection().Using(c =>
-				c.Command("SELECT SecurityLogID, ActivityDate, UserID, SecurityLogType, Message FROM pf_SecurityLog WHERE IP = @IP AND ActivityDate >= @Start AND ActivityDate <= @End ORDER BY ActivityDate")
-				.AddParameter("@IP", ip)
-				.AddParameter("@Start", start)
-				.AddParameter("@End", end)
+				c.Command(_sqlObjectFactory, "SELECT SecurityLogID, ActivityDate, UserID, SecurityLogType, Message FROM pf_SecurityLog WHERE IP = @IP AND ActivityDate >= @Start AND ActivityDate <= @End ORDER BY ActivityDate")
+				.AddParameter(_sqlObjectFactory, "@IP", ip)
+				.AddParameter(_sqlObjectFactory, "@Start", start)
+				.AddParameter(_sqlObjectFactory, "@End", end)
 				.ExecuteReader()
 				.ReadAll(r => list.Add(new IPHistoryEvent
 				{

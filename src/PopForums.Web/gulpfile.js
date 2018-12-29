@@ -1,45 +1,18 @@
-﻿/// <binding Clean='clean' />
+﻿/// <binding AfterBuild="default" />
 
-var gulp = require("gulp"),
-    rimraf = require("rimraf"),
-    concat = require("gulp-concat"),
-    cssmin = require("gulp-cssmin"),
-    uglify = require("gulp-uglify"),
-    project = require("./project.json");
+var gulp = require("gulp");
+var merge = require("merge-stream");
 
-var paths = {
-    webroot: "./" + project.webroot + "/"
-};
+var nodeRoot = "./node_modules/";
+var targetPath = "./wwwroot/lib/";
 
-paths.js = paths.webroot + "js/**/*.js";
-paths.minJs = paths.webroot + "js/**/*.min.js";
-paths.css = paths.webroot + "css/**/*.css";
-paths.minCss = paths.webroot + "css/**/*.min.css";
-paths.concatJsDest = paths.webroot + "js/site.min.js";
-paths.concatCssDest = paths.webroot + "css/site.min.css";
-
-gulp.task("clean:js", function (cb) {
-    rimraf(paths.concatJsDest, cb);
+gulp.task("default", function () {
+	var streams = [
+		gulp.src(nodeRoot + "bootstrap/dist/**/*").pipe(gulp.dest(targetPath + "/bootstrap/dist")),
+		gulp.src(nodeRoot + "popper.js/dist/umd/popper.min.js").pipe(gulp.dest(targetPath + "/popper.js/dist")),
+		gulp.src(nodeRoot + "jquery/dist/**/*").pipe(gulp.dest(targetPath + "/jquery/dist")),
+		gulp.src(nodeRoot + "@aspnet/signalr/dist/browser/**/*").pipe(gulp.dest(targetPath + "/signalr/dist")),
+		gulp.src(nodeRoot + "tinymce/**/*").pipe(gulp.dest(targetPath + "/tinymce"))
+	];
+	return merge(streams);
 });
-
-gulp.task("clean:css", function (cb) {
-    rimraf(paths.concatCssDest, cb);
-});
-
-gulp.task("clean", ["clean:js", "clean:css"]);
-
-gulp.task("min:js", function () {
-    gulp.src([paths.js, "!" + paths.minJs], { base: "." })
-        .pipe(concat(paths.concatJsDest))
-        .pipe(uglify())
-        .pipe(gulp.dest("."));
-});
-
-gulp.task("min:css", function () {
-    gulp.src([paths.css, "!" + paths.minCss])
-        .pipe(concat(paths.concatCssDest))
-        .pipe(cssmin())
-        .pipe(gulp.dest("."));
-});
-
-gulp.task("min", ["min:js", "min:css"]);

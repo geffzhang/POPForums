@@ -2,28 +2,22 @@
 using System.Data.Common;
 using Microsoft.Extensions.DependencyInjection;
 using PopForums.Configuration;
-using PopForums.Data.Sql.Repositories;
+using PopForums.Sql.Repositories;
 using PopForums.Repositories;
 
 namespace PopForums.Data.Sql
 {
 	public static class Extensions
 	{
-		public static DbCommand Command(this DbConnection connection, string sql)
+		public static DbCommand Command(this DbConnection connection, ISqlObjectFactory sqlObjectFactory, string sql)
 		{
-			// TODO: get factory from DI container
-			//var factory = PopForumsActivation.Container.GetInstance<ISqlObjectFactory>();
-			//var command = factory.GetCommand(sql, connection);
-			var command = new SqlObjectFactory().GetCommand(sql, connection);
+			var command = sqlObjectFactory.GetCommand(sql, connection);
 			return command;
 		}
 
-		public static DbCommand AddParameter(this DbCommand command, string parameterName, object value)
+		public static DbCommand AddParameter(this DbCommand command, ISqlObjectFactory sqlObjectFactory, string parameterName, object value)
 		{
-			// TODO: get factory from DI container
-			//var factory = PopForumsActivation.Container.GetInstance<ISqlObjectFactory>();
-			//var parameter = factory.GetParameter(parameterName, value);
-			var parameter = new SqlObjectFactory().GetParameter(parameterName, value);
+			var parameter = sqlObjectFactory.GetParameter(parameterName, value);
             command.Parameters.Add(parameter);
 			return command;
 		}
@@ -107,6 +101,7 @@ namespace PopForums.Data.Sql
 			services.AddTransient<IUserImageRepository, UserImageRepository>();
 			services.AddTransient<IUserRepository, UserRepository>();
 			services.AddTransient<IUserSessionRepository, UserSessionRepository>();
+			services.AddTransient<IServiceHeartbeatRepository, ServiceHeartbeatRepository>();
 		}
 
 		public static object GetObjectOrDbNull(this object value)

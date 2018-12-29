@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using PopForums.Data.Sql;
 using PopForums.Repositories;
 
-namespace PopForums.Data.Sql.Repositories
+namespace PopForums.Sql.Repositories
 {
 	public class AwardCalculationQueueRepository : IAwardCalculationQueueRepository
 	{
@@ -16,30 +17,29 @@ namespace PopForums.Data.Sql.Repositories
 		public void Enqueue(string eventDefinitionID, int userID)
 		{
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("INSERT INTO pf_AwardCalculationQueue (EventDefinitionID, UserID, TimeStamp) VALUES (@EventDefinitionID, @UserID, @TimeStamp)")
-				.AddParameter("@EventDefinitionID", eventDefinitionID)
-				.AddParameter("@UserID", userID)
-				.AddParameter("@TimeStamp", DateTime.UtcNow)
+				connection.Command(_sqlObjectFactory, "INSERT INTO pf_AwardCalculationQueue (EventDefinitionID, UserID, TimeStamp) VALUES (@EventDefinitionID, @UserID, @TimeStamp)")
+				.AddParameter(_sqlObjectFactory, "@EventDefinitionID", eventDefinitionID)
+				.AddParameter(_sqlObjectFactory, "@UserID", userID)
+				.AddParameter(_sqlObjectFactory, "@TimeStamp", DateTime.UtcNow)
 				.ExecuteNonQuery());
 		}
 
 		public KeyValuePair<string, int> Dequeue()
 		{
 			var pair = new KeyValuePair<string, int>();
-			var id = 0;
+			var sql = @"WITH cte AS (
+SELECT TOP(1) EventDefinitionID, UserID
+FROM pf_AwardCalculationQueue WITH (ROWLOCK, READPAST)
+ORDER BY ID)
+DELETE FROM cte
+OUTPUT DELETED.EventDefinitionID, DELETED.UserID";
 			_sqlObjectFactory.GetConnection().Using(connection =>
-				connection.Command("SELECT TOP 1 ID, EventDefinitionID, UserID FROM pf_AwardCalculationQueue ORDER BY TimeStamp")
+				connection.Command(_sqlObjectFactory, sql)
 				.ExecuteReader()
 				.ReadOne(r =>
 				{ 
-					pair = new KeyValuePair<string, int>(r.GetString(1), r.GetInt32(2));
-					id = r.GetInt32(0);
+					pair = new KeyValuePair<string, int>(r.GetString(0), r.GetInt32(1));
 				}));
-			if (id != 0)
-				_sqlObjectFactory.GetConnection().Using(connection =>
-					connection.Command("DELETE FROM pf_AwardCalculationQueue WHERE ID = @ID")
-					.AddParameter("@ID", id)
-					.ExecuteNonQuery());
 			return pair;
 		}
 	}

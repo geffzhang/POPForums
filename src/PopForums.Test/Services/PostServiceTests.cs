@@ -24,6 +24,7 @@ namespace PopForums.Test.Services
 		private Mock<IEventPublisher> _eventPub;
 		private Mock<IUserService> _userService;
 		private Mock<IFeedService> _feedService;
+		private Mock<ITopicRepository> _topicRepo;
 
 		private PostService GetService()
 		{
@@ -38,8 +39,9 @@ namespace PopForums.Test.Services
 			_eventPub = new Mock<IEventPublisher>();
 			_userService = new Mock<IUserService>();
 			_feedService = new Mock<IFeedService>();
+			_topicRepo = new Mock<ITopicRepository>();
 			_settingsManager.Setup(s => s.Current).Returns(_settings.Object);
-			return new PostService(_postRepo.Object, _profileRepo.Object, _settingsManager.Object, _topicService.Object, _textParsingService.Object, _modLogService.Object, _forumService.Object, _eventPub.Object, _userService.Object, _feedService.Object);
+			return new PostService(_postRepo.Object, _profileRepo.Object, _settingsManager.Object, _topicService.Object, _textParsingService.Object, _modLogService.Object, _forumService.Object, _eventPub.Object, _userService.Object, _feedService.Object, _topicRepo.Object);
 		}
 
 		[Fact]
@@ -180,23 +182,7 @@ namespace PopForums.Test.Services
 			var user = new User(456, DateTime.MinValue);
 			_profileRepo.Setup(p => p.GetProfile(user.UserID)).Returns(new Profile {IsPlainText = true});
 			_textParsingService.Setup(p => p.HtmlToForumCode("not")).Returns("new text");
-			var postEdit = service.GetPostForEdit(post, user, false);
-			Assert.Equal("mah title", postEdit.Title);
-			Assert.Equal("new text", postEdit.FullText);
-			Assert.True(postEdit.ShowSig);
-			Assert.True(postEdit.IsPlainText);
-			_textParsingService.Verify(t => t.HtmlToForumCode("not"), Times.Exactly(1));
-		}
-
-		[Fact]
-		public void GetPostForEditPlainTextMobile()
-		{
-			var service = GetService();
-			var post = new Post(123) { Title = "mah title", FullText = "not", ShowSig = true };
-			var user = new User(456, DateTime.MinValue);
-			_profileRepo.Setup(p => p.GetProfile(user.UserID)).Returns(new Profile { IsPlainText = false });
-			_textParsingService.Setup(p => p.HtmlToForumCode("not")).Returns("new text");
-			var postEdit = service.GetPostForEdit(post, user, true);
+			var postEdit = service.GetPostForEdit(post, user);
 			Assert.Equal("mah title", postEdit.Title);
 			Assert.Equal("new text", postEdit.FullText);
 			Assert.True(postEdit.ShowSig);
@@ -212,7 +198,7 @@ namespace PopForums.Test.Services
 			var user = new User(456, DateTime.MinValue);
 			_profileRepo.Setup(p => p.GetProfile(user.UserID)).Returns(new Profile { IsPlainText = false });
 			_textParsingService.Setup(p => p.HtmlToClientHtml("not")).Returns("new text");
-			var postEdit = service.GetPostForEdit(post, user, false);
+			var postEdit = service.GetPostForEdit(post, user);
 			Assert.Equal("mah title", postEdit.Title);
 			Assert.Equal("new text", postEdit.FullText);
 			Assert.True(postEdit.ShowSig);
@@ -225,7 +211,7 @@ namespace PopForums.Test.Services
 		{
 			var service = GetService();
 			service.EditPost(new Post(456), new PostEdit{ Title = "blah" }, new User(123, DateTime.MinValue));
-			_textParsingService.Verify(t => t.EscapeHtmlAndCensor("blah"), Times.Exactly(1));
+			_textParsingService.Verify(t => t.Censor("blah"), Times.Exactly(1));
 		}
 
 		[Fact]
@@ -251,10 +237,10 @@ namespace PopForums.Test.Services
 			var post = new Post(67);
 			_postRepo.Setup(p => p.Update(It.IsAny<Post>())).Callback<Post>(p => post = p);
 			_textParsingService.Setup(t => t.ClientHtmlToHtml("blah")).Returns("new");
-			_textParsingService.Setup(t => t.EscapeHtmlAndCensor("unparsed title")).Returns("new title");
+			_textParsingService.Setup(t => t.Censor("unparsed title")).Returns("new title");
 			service.EditPost(new Post(456) { ShowSig = false }, new PostEdit { FullText = "blah", Title = "unparsed title", IsPlainText = false, ShowSig = true }, new User(123, DateTime.MinValue) { Name = "dude" });
 			Assert.NotEqual(post.LastEditTime, new DateTime(2009, 1, 1));
-			Assert.Equal(post.PostID, 456);
+			Assert.Equal(456, post.PostID);
 			Assert.Equal("new", post.FullText);
 			Assert.Equal("new title", post.Title);
 			Assert.True(post.ShowSig);
@@ -268,9 +254,21 @@ namespace PopForums.Test.Services
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue) {Name = "dude"};
 			_textParsingService.Setup(t => t.ClientHtmlToHtml("blah")).Returns("new");
-			_textParsingService.Setup(t => t.EscapeHtmlAndCensor("unparsed title")).Returns("new title");
+			_textParsingService.Setup(t => t.Censor("unparsed title")).Returns("new title");
 			service.EditPost(new Post(456) { ShowSig = false, FullText = "old text" }, new PostEdit { FullText = "blah", Title = "unparsed title", IsPlainText = false, ShowSig = true, Comment = "mah comment" }, user);
 			_modLogService.Verify(m => m.LogPost(user, ModerationType.PostEdit, It.IsAny<Post>(), "mah comment", "old text"), Times.Exactly(1));
+		}
+
+		[Fact]
+		public void EditPostMarksTopicForIndexing()
+		{
+			var service = GetService();
+			var user = new User(123, DateTime.MinValue) { Name = "dude" };
+			var post = new Post(456) {ShowSig = false, FullText = "old text", TopicID = 999};
+
+			service.EditPost(post, new PostEdit { FullText = "blah", Title = "unparsed title", IsPlainText = false, ShowSig = true, Comment = "mah comment" }, user);
+
+			_topicRepo.Verify(x => x.MarkTopicForIndexing(post.TopicID), Times.Once());
 		}
 
 		[Fact]
@@ -285,7 +283,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void DeleteCallDeleteTopicIfFirstInTopic()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue);
@@ -299,7 +297,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void DeleteCallLogs()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue);
@@ -313,7 +311,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void DeleteSetsEditFields()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue);
@@ -331,7 +329,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void DeleteCallSetsIsDeletedAndUpdates()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue);
@@ -348,7 +346,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void DeleteCallFiresRecalcs()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue);
@@ -374,7 +372,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void UndeleteCallLogs()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue) { Roles = new List<string> { PermanentRoles.Moderator }};
@@ -388,7 +386,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void UndeleteSetsEditFields()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue) { Roles = new List<string> { PermanentRoles.Moderator } };
@@ -406,7 +404,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void UndeleteCallSetsIsDeletedAndUpdates()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue) { Roles = new List<string> { PermanentRoles.Moderator } };
@@ -423,7 +421,7 @@ namespace PopForums.Test.Services
 		[Fact]
 		public void UndeleteCallFiresRecalcs()
 		{
-			var forum = new Forum(5);
+			var forum = new Forum { ForumID = 5 };
 			var topic = new Topic(4) { ForumID = forum.ForumID };
 			var service = GetService();
 			var user = new User(123, DateTime.MinValue) { Roles = new List<string> { PermanentRoles.Moderator } };
@@ -602,7 +600,7 @@ namespace PopForums.Test.Services
 		{
 			var service = GetService();
 			var result = service.GetVotedPostIDs(null, new List<Post>());
-			Assert.Equal(0, result.Count);
+			Assert.Empty(result);
 		}
 
 		[Fact]
@@ -650,9 +648,9 @@ namespace PopForums.Test.Services
 			var message = String.Empty;
 			_eventPub.Setup(x => x.ProcessEvent(It.IsAny<string>(), It.IsAny<User>(), EventDefinitionService.StaticEventIDs.PostVote, false)).Callback<string, User, string, bool>((x, y, z, a) => message = x);
 			service.VotePost(new Post(123) { UserID = voteUpUser.UserID }, new User(456, DateTime.MinValue), userUrl, topicUrl, title);
-			Assert.True(message.Contains(userUrl));
-			Assert.True(message.Contains(topicUrl));
-			Assert.True(message.Contains(title));
+			Assert.Contains(userUrl, message);
+			Assert.Contains(topicUrl, message);
+			Assert.Contains(title, message);
 		}
 
 		[Fact]

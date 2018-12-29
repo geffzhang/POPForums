@@ -146,16 +146,9 @@ namespace PopForums.Services
 
 		public List<int> GetViewableForumIDsFromViewRestrictedForums(User user)
 		{
-			var forumsWithRestrictions = _forumRepository.GetForumViewRestrictionRoleGraph();
-			var viewableForums = new List<int>();
-			if (user == null)
-				return viewableForums;
-			foreach (var item in forumsWithRestrictions.Where(f => f.Value.Count > 0))
-			{
-				if (user.Roles.Intersect(item.Value).Count() != 0)
-					viewableForums.Add(item.Key);
-			}
-			return viewableForums;
+			var nonViewableForumIDs = GetNonViewableForumIDs(user);
+			var noViewRestrictionForums = _forumRepository.GetAllVisible().Where(f => !nonViewableForumIDs.Contains(f.ForumID));
+			return noViewRestrictionForums.Select(x => x.ForumID).ToList();
 		}
 
 		public CategorizedForumContainer GetCategorizedForumContainerFilteredForUser(User user)
@@ -200,7 +193,7 @@ namespace PopForums.Services
 			else
 			{
 				context.UserCanView = false;
-				if (user != null && viewRestrictionRoles.Where(user.IsInRole).Count() > 0)
+				if (user != null && viewRestrictionRoles.Where(user.IsInRole).Any())
 					context.UserCanView = true;
 			}
 
@@ -235,7 +228,7 @@ namespace PopForums.Services
 			if (topic != null && topic.IsClosed)
 			{
 				context.UserCanPost = false;
-				context.DenialReason += Resources.Closed + ". ";
+				context.DenialReason = Resources.Closed + ". ";
 			}
 
 			if (topic != null && topic.IsDeleted)
@@ -263,7 +256,7 @@ namespace PopForums.Services
 		{
 			if (!permissionContext.UserCanPost || !permissionContext.UserCanView)
 				throw new Exception(String.Format("User {0} can't post to forum {1}.", user.Name, forum.Title));
-			newPost.Title = _textParsingService.EscapeHtmlAndCensor(newPost.Title);
+			newPost.Title = _textParsingService.Censor(newPost.Title);
 			if (newPost.IsPlainText)
 				newPost.FullText = _textParsingService.ForumCodeToHtml(newPost.FullText);
 			else
@@ -285,6 +278,7 @@ namespace PopForums.Services
 			forum = _forumRepository.Get(forum.ForumID);
 			_broker.NotifyForumUpdate(forum);
 			_broker.NotifyTopicUpdate(topic, forum, topicLink);
+			_topicRepository.MarkTopicForIndexing(topic.TopicID);
 			return topic;
 		}
 

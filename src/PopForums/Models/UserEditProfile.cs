@@ -15,7 +15,6 @@ namespace PopForums.Models
 			IsPlainText = profile.IsPlainText;
 			Dob = profile.Dob;
 			Web = profile.Web;
-			Aim = profile.Aim;
 			Icq = profile.Icq;
 			YahooMessenger = profile.YahooMessenger;
 			Facebook = profile.Facebook;
@@ -32,7 +31,6 @@ namespace PopForums.Models
 		public bool IsPlainText { get; set; }
 		public DateTime? Dob { get; set; }
 		public string Web { get; set; }
-		public string Aim { get; set; }
 		public string Icq { get; set; }
 		public string YahooMessenger { get; set; }
 		public string Facebook { get; set; }
